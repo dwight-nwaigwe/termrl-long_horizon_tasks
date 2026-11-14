@@ -1,0 +1,6 @@
+id: script-permissions
+instruction: |
+  In scripts/ (including subdirectories), set every file whose name ends in .sh to
+  mode 700 and every other regular file to mode 600. Do not change the permissions
+  of directories.
+tags: [easy, permissions]

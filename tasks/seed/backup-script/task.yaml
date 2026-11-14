@@ -1,0 +1,8 @@
+id: backup-script
+instruction: |
+  Write an executable bash script backup.sh in the current directory.
+  Usage: `./backup.sh DIR`. It must create a gzip-compressed tar archive named
+  DIR-backup.tar.gz in the directory it is run from, containing DIR. If no argument
+  is given, or DIR is not a directory, it must print an error message to stderr
+  (nothing to stdout) and exit with status 1.
+tags: [medium, scripting]

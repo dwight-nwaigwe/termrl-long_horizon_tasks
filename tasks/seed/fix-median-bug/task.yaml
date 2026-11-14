@@ -1,0 +1,6 @@
+id: fix-median-bug
+instruction: |
+  The unit tests in calc/ are failing (run them with `cd calc && python3 -m unittest`).
+  Fix the bug in calc/stats.py so they pass. Do not modify the test file, and
+  median() must not modify the list passed to it.
+tags: [medium, python, debugging]

@@ -1,0 +1,6 @@
+id: git-feature-branch
+instruction: |
+  In the git repository project/, README.md has an uncommitted edit. Commit it on a
+  new branch named feature/readme with the commit message `Update README`. The main
+  branch must stay at its current commit and the working tree must be clean afterwards.
+tags: [easy, git]

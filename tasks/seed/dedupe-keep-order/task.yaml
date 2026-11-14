@@ -1,0 +1,5 @@
+id: dedupe-keep-order
+instruction: |
+  names.txt has one name per line, with duplicates. Write unique.txt containing each
+  name exactly once, in the order of its first appearance in names.txt.
+tags: [easy, text]

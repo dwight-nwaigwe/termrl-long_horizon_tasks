@@ -1,0 +1,6 @@
+id: extract-txt-from-archive
+instruction: |
+  backup.tar.gz contains a mix of files. Extract only the .txt files into a directory
+  named restored/, keeping their paths from the archive (for example restored/docs/a.txt).
+  No other files should end up in restored/.
+tags: [medium, archives]

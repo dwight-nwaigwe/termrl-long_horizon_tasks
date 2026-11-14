@@ -1,0 +1,6 @@
+id: count-errors
+instruction: |
+  The file logs/app.log contains application log lines in the format
+  `TIMESTAMP LEVEL MESSAGE`. Count how many lines have the level ERROR and write
+  just that number to error_count.txt.
+tags: [easy, logs]

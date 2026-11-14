@@ -1,0 +1,6 @@
+id: active-emails
+instruction: |
+  users.json contains a list of user records. Write the email addresses of all users
+  with "active": true to active_emails.txt: lowercased, de-duplicated, sorted
+  alphabetically, one per line.
+tags: [easy, json]

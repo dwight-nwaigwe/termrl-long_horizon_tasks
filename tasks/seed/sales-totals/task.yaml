@@ -1,0 +1,6 @@
+id: sales-totals
+instruction: |
+  sales.csv has the columns date,region,amount. Create totals.csv with the header
+  `region,total` and one row per region, sorted alphabetically by region, where
+  total is the sum of amount for that region written with exactly 2 decimal places.
+tags: [easy, csv]

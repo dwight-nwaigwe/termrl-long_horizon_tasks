@@ -1,0 +1,6 @@
+id: find-large-files
+instruction: |
+  Find every regular file under data/ (recursively) that is strictly larger than
+  1 MiB (1048576 bytes). Write their paths relative to data/ (like `x/y.bin`),
+  one per line, sorted alphabetically, to large_files.txt.
+tags: [easy, files]

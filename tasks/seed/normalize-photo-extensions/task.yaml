@@ -1,0 +1,6 @@
+id: normalize-photo-extensions
+instruction: |
+  In the photos/ directory, rename every JPEG image so its extension is exactly
+  lowercase `.jpg` (for example IMG_001.JPG -> IMG_001.jpg and x.jpeg -> x.jpg).
+  Keep the base names unchanged and don't touch any other files.
+tags: [easy, files]

@@ -1,0 +1,5 @@
+id: edit-ini-port
+instruction: |
+  In config/app.ini, change the port in the [server] section to 9090. Leave everything
+  else unchanged, including the [database] port and the comment line.
+tags: [easy, config]

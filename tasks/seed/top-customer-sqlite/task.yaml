@@ -1,0 +1,7 @@
+id: top-customer-sqlite
+instruction: |
+  shop.db is a SQLite database with tables customers(id, name) and
+  orders(id, customer_id, amount_cents, status). Find the customer with the highest
+  total spend, counting only orders whose status is 'completed', and write just
+  their name to top_customer.txt.
+tags: [medium, sql]

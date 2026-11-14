@@ -1,0 +1,37 @@
+# Expert-iteration run on a single GPU (e.g. 1x L40S 48GB or 1x A100/H100 80GB).
+# Usage: uv run python -m termrl.iterate configs/default.yaml
+
+base_model: Qwen/Qwen2.5-1.5B-Instruct   # or a warm-started model, e.g. runs/models/warmstart/merged
+run_dir: runs/expert_iter
+train_tasks: [tasks/generated]            # made with termrl.generate_tasks
+eval_tasks: [tasks/seed]                  # held out; never trained on
+iterations: 3
+
+concurrency: 16          # parallel episodes; needs this many sandbox users (runpod_setup.sh makes 32)
+k: 8                     # attempts per training task per iteration
+temperature: 1.0
+eval_k: 4
+eval_temperature: 0.6
+max_turns: 20
+max_tokens: 1024         # per assistant reply
+command_timeout: 60      # seconds per shell command
+no_thinking: false       # true for Qwen3-style models to disable <think> mode
+
+vllm:
+  version: "0.19.1"
+  port: 8000
+  gpu_memory_utilization: 0.85
+  max_model_len: 16384
+  tensor_parallel_size: 1
+  extra_args: []
+
+sft:
+  max_per_task: 2        # successful trajectories kept per task
+  skip_easy: true        # ignore tasks solved in every attempt (nothing left to learn)
+  epochs: 2
+  lr: 1.0e-4
+  batch_size: 1
+  grad_accum: 8
+  max_length: 8192
+  lora_r: 32
+  lora_alpha: 64
