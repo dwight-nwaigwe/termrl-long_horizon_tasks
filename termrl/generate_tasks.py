@@ -88,7 +88,19 @@ def parse_json(text: str) -> dict:
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end < 0:
         raise ValueError("no JSON object in reply")
-    obj = json.loads(text[start : end + 1])
+    raw = text[start : end + 1]
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError:
+        # Teachers often forget to double backslashes in shell/regex code (e.g. "\." or "\d").
+        # Keep valid JSON escapes, double every other backslash, and try again.
+        fixed = re.sub(
+            r'\\(u[0-9a-fA-F]{4}|.)',
+            lambda m: m.group(0) if m.group(1)[0] in '"\\/bfnrt' or len(m.group(1)) == 5 else "\\\\" + m.group(1),
+            raw,
+            flags=re.S,
+        )
+        obj = json.loads(fixed)
     for key in ("slug", "instruction", "setup_sh", "solution_sh", "verify_sh"):
         if not isinstance(obj.get(key), str) or not obj[key].strip():
             raise ValueError(f"missing or empty key {key!r}")
@@ -121,14 +133,19 @@ async def generate(args) -> None:
     async def one(i: int):
         rng = random.Random(args.seed * 1_000_003 + i)
         spec = sample_spec(rng)
+        obj = None
         async with sem:
-            try:
-                reply = await llm.chat([{"role": "user", "content": PROMPT.format(**spec)}], temperature=args.temperature, max_tokens=args.max_tokens)
-                obj = parse_json(reply.text)
-            except Exception as e:  # noqa: BLE001
-                stats["bad_json"] += 1
-                print(f"[{i}] generation failed: {e!r}"[:300], flush=True)
-                return
+            for attempt in range(1 + args.retries):
+                try:
+                    reply = await llm.chat([{"role": "user", "content": PROMPT.format(**spec)}], temperature=args.temperature, max_tokens=args.max_tokens)
+                    obj = parse_json(reply.text)
+                    break
+                except Exception as e:  # noqa: BLE001
+                    last = "retrying" if attempt < args.retries else "giving up"
+                    print(f"[{i}] generation failed ({last}): {e!r}"[:300], flush=True)
+        if obj is None:
+            stats["bad_json"] += 1
+            return
         d = write_task(obj, spec, out)
         ok, why = await validate_task(load_task(d), pool)
         if ok:
@@ -155,6 +172,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--concurrency", type=int, default=8, help="parallel teacher requests")
     ap.add_argument("--users", type=int, default=8, help="sandbox users for validation")
+    ap.add_argument("--retries", type=int, default=2, help="extra teacher requests when a reply can't be parsed")
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--max-tokens", type=int, default=6000)
     add_llm_args(ap)
