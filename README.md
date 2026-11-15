@@ -99,7 +99,7 @@ uv run python -m termrl.train_sft --model Qwen/Qwen2.5-1.5B-Instruct \
     --data runs/sft/teacher.jsonl --output runs/models/warmstart
 ```
 
-Then set `base_model: runs/models/warmstart/merged` in `configs/default.yaml`.
+Then set `base_model: runs/models/warmstart/merged` in `configs/default.yaml` because the  warm-start training saved an improved model in runs/models/warmstart/merged. To make the loop start from that model, change the line as stated.
 
 ## 6. Expert iteration (the RL loop)
 
