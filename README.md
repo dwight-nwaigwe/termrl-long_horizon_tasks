@@ -1,8 +1,11 @@
-# termrl
+# termrl- a repository for understanding training on long horizon tasks
 
 Train a small open model to use a Linux terminal, on **one RunPod GPU pod**.
 
-termrl follows the same idea as [tmax](https://github.com/hamishivi/tmax), simplified so it fits what a RunPod pod can do:
+termrl follows the same idea as [tmax](https://github.com/hamishivi/tmax), simplified so it fits what a RunPod pod can do. It is often difficult to reproduce work on machine learning, 
+and https://github.com/hamishivi/tmax is not an exception. The GitHub repository https://github.com/OpenEuroLLM/tmax-reproduction is an attempt at reproducing tmax, but they largely did not succeed
+as far as getting the code to fully work and results to match. This repository is inspired by tmax, and works the same way, but instead of being specific to Allen Institute for AI architecture, it depends
+on RunPod GPUs. RunPod is a rentable GPU resource which I use since I do not have a powerful GPU of my own
 
 | | tmax | termrl |
 |---|---|---|
