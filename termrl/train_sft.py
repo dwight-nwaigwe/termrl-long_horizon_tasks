@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import math
 import os
 from pathlib import Path
 
@@ -64,6 +65,11 @@ def main() -> None:
 
     model = AutoModelForCausalLM.from_pretrained(args.model, dtype=torch.bfloat16, attn_implementation="sdpa")
 
+    # Warmup = 3% of optimizer steps. Computed here because newer transformers
+    # versions removed `warmup_ratio`; an integer `warmup_steps` works everywhere.
+    steps_per_epoch = math.ceil(len(ds) / (args.batch_size * args.grad_accum))
+    warmup_steps = max(1, int(0.03 * steps_per_epoch * args.epochs))
+
     cfg = SFTConfig(
         output_dir=str(out / "checkpoints"),
         num_train_epochs=args.epochs,
@@ -71,7 +77,7 @@ def main() -> None:
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.03,
+        warmup_steps=warmup_steps,
         bf16=True,
         gradient_checkpointing=True,
         logging_steps=5,
