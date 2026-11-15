@@ -55,12 +55,16 @@ uv run python -m termrl.rollout --tasks tasks/seed --k 4 --out runs/baseline/see
 
 This prints pass@1, pass@4, how often episodes ended by submitting vs. running out of turns, and so on. Every full conversation is saved in the `.jsonl`, which is the best way to see *why* the model fails.
 
-Stop the server (`tmux kill-session -t vllm`) before you train: training needs the GPU memory.
+**Stop the server before you train** (`tmux kill-session -t vllm`, then check `nvidia-smi` shows no process). vLLM holds 85% of GPU memory, and training will run out of memory if it's still up. `iterate.py` starts and stops its own server, so stop yours before running that too.
 
 ## 4. Generate training tasks with a teacher model
 
 ```bash
-uv run python -m termrl.generate_tasks --n 300 --out tasks/generated
+export TEACHER_BASE_URL="https://api.openai.com/v1" TEACHER_MODEL="gpt-5.6-terra" TEACHER_API_KEY="sk-..."
+uv run python -m termrl.generate_tasks --n 5 --out tasks/generated \
+    --max-tokens-field max_completion_tokens --max-tokens 16000     # test first
+uv run python -m termrl.generate_tasks --n 295 --start 5 --out tasks/generated \
+    --max-tokens-field max_completion_tokens --max-tokens 16000
 ```
 
 Each task comes from a randomly drawn domain × skill × persona × difficulty, and then gets **executed**. A task is kept only if:
@@ -73,7 +77,7 @@ Expect a fair share of tasks to be rejected; the reasons are in `tasks/generated
 Tips:
 * Use a strong teacher (a frontier API model). Weak teachers write verifiers that are broken or too easy.
 * Read 10–20 generated tasks before training on them. Verifiers that can be fooled teach the model to fool them.
-* For newer OpenAI models, add `--max-tokens-field max_completion_tokens`.
+* Newer OpenAI models (GPT-5.x) need `--max-tokens-field max_completion_tokens` and a large `--max-tokens` (16000), because their hidden reasoning counts toward the limit. Without these flags every request fails.
 
 ## 5. (Optional but recommended) warm start from teacher demonstrations
 
@@ -82,7 +86,9 @@ Small models often solve almost nothing at first, which leaves expert iteration 
 ```bash
 # teacher attempts the tasks (k=2 each)
 uv run python -m termrl.rollout --tasks tasks/generated --k 2 --out runs/teacher.jsonl \
-    --base-url "$TEACHER_BASE_URL" --model "$TEACHER_MODEL" --api-key-env TEACHER_API_KEY
+    --base-url "$TEACHER_BASE_URL" --model "$TEACHER_MODEL" --api-key-env TEACHER_API_KEY \
+    --max-tokens-field max_completion_tokens --max-tokens 16000
+# check: the summary must show no llm_error under "finishes"
 
 # keep successful attempts -> SFT data -> LoRA fine-tune + merge
 uv run python -m termrl.build_sft runs/teacher.jsonl --out runs/sft/teacher.jsonl --max-per-task 2
