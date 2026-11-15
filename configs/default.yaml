@@ -1,6 +1,7 @@
 # Expert-iteration run on a single GPU (e.g. 1x L40S 48GB or 1x A100/H100 80GB).
 # Usage: uv run python -m termrl.iterate configs/default.yaml
 
+algorithm: expert_iteration              # or dppo (see configs/dppo.yaml)
 base_model: Qwen/Qwen2.5-1.5B-Instruct   # or a warm-started model, e.g. runs/models/warmstart/merged
 run_dir: runs/expert_iter
 train_tasks: [tasks/generated]            # made with termrl.generate_tasks

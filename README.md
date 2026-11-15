@@ -8,7 +8,7 @@ termrl follows the same idea as [tmax](https://github.com/hamishivi/tmax), simpl
 |---|---|---|
 | Task sandbox | Docker / Podman / Apptainer containers, or Daytona | **No containers.** Each episode runs as its own unprivileged Linux user in a private directory |
 | Task data | LLM-generated tasks with verifiers (TMax-15K) | LLM-generated tasks with verifiers (`generate_tasks.py`), plus 13 hand-written seed tasks |
-| Training | SFT, then DPPO RL on multi-node clusters (Beaker) | Optional SFT warm start, then **expert iteration** (learn from your own successful attempts) on 1 GPU |
+| Training | SFT, then DPPO RL on multi-node clusters (Beaker) | Optional SFT warm start, then **expert iteration** or **DPPO** (LoRA) on 1 GPU |
 | Serving / eval | vLLM + Harbor | vLLM + a built-in agent loop, reporting pass@k |
 
 Why no containers: a RunPod pod *is* a Docker container, and you can't start Docker, Podman or Apptainer containers inside it. termrl isolates episodes with Linux users instead (details under [How the sandbox works](#how-the-sandbox-works)).
@@ -115,6 +115,25 @@ The merged model is the next iteration's starting point. Metrics go to `runs/exp
 
 What to watch: eval `pass@1` should rise over iterations, and train `solved_any` tells you how much signal there is. If `solved_any` is near 0, warm-start first or use easier tasks. If it's near 1, generate harder tasks.
 
+## 7. (Alternative to 6) DPPO, the RL algorithm tmax uses
+
+```bash
+# edit base_model in configs/dppo.yaml first (e.g. your warm-start model)
+tmux new -s train 'uv run python -m termrl.iterate configs/dppo.yaml 2>&1 | tee runs/dppo.log'
+```
+
+How it differs from expert iteration:
+* **It learns from failures too.** Every episode gets an advantage of reward minus the average reward of the task's `k` attempts. Successes are pushed up and failures pushed down. Tasks where all attempts succeed or all fail give no signal and are skipped.
+* **It uses a divergence trust region instead of PPO clipping.** For each generated token, it compares the probability under the rollout policy (the log-probs vLLM recorded while sampling) with the current policy (Binary-TV: `|mu - p|`). An update is blocked only if that difference exceeds `delta` *and* the update would push it further. Defaults follow the paper's LoRA setup: Binary-TV, delta 0.15, lr 1e-5, 4 optimizer steps per rollout batch, no std normalization of advantages.
+* **It takes small, frequent steps.** Each iteration attempts `tasks_per_iter` tasks (32 × 8 episodes by default), then takes 4 optimizer steps. One LoRA adapter, and its optimizer state, carries over across iterations. vLLM serves the base model plus the current adapter, and the adapter is merged into the base only at the end (`runs/dppo/final/merged`).
+
+What to watch in `runs/dppo/metrics.jsonl` (`dppo_steps`) or the log:
+* `mean_abs_logp_diff` at step 0 should be small (about 0.01–0.05). It measures how much the trainer and vLLM disagree before any update. A big value means the rebuilt prompts don't match what vLLM saw (check `no_thinking`).
+* `masked_frac` should be a few percent or less. If it's large, updates are too aggressive: lower `lr`.
+* The `train` summary's `pass@1` should creep up over iterations, and `eval` (every `eval_every` iterations) is the real check.
+
+Each iteration restarts vLLM. `--enforce-eager` in `configs/dppo.yaml` keeps that to about a minute.
+
 ## Task format
 
 ```
@@ -162,12 +181,16 @@ termrl/generate_tasks.py  teacher-generated tasks + validation
 termrl/build_sft.py       successful trajectories -> prompt/completion SFT data
 termrl/train_sft.py       TRL + PEFT LoRA training, adapter merge
 termrl/vllm_server.py     start/stop vLLM
-termrl/iterate.py         expert-iteration loop
-configs/default.yaml      settings for iterate.py
+termrl/iterate.py         RL loop: expert iteration or DPPO
+termrl/dppo.py            DPPO advantages, trust-region mask, token samples
+termrl/train_dppo.py      one DPPO update on a LoRA adapter
+termrl/merge.py           merge a LoRA adapter into its base model
+configs/default.yaml      expert-iteration settings
+configs/dppo.yaml         DPPO settings
 scripts/runpod_setup.sh   one-time pod setup
 scripts/serve.sh          serve a model with vLLM
 tasks/seed/               13 hand-written held-out tasks
-tests/test_e2e.py         full loop with a scripted fake model (no GPU needed)
+tests/                    full loop with a scripted fake model + DPPO math (no GPU needed)
 ```
 
 Run the tests with `uv run pytest -q tests`. They need root and the sandbox users.
@@ -181,5 +204,5 @@ Run the tests with `uv run pytest -q tests`. They need root and the sandbox user
 
 ## Next steps beyond this repo
 
-* Learn from failures too: replace expert iteration with GRPO-style updates (advantage = reward − mean reward of the group). The rollout files already hold `k` samples per task, which is exactly what GRPO groups need.
+* Keep vLLM running and push adapter updates to it (vLLM can load LoRA adapters at runtime) instead of restarting it every DPPO iteration.
 * Scale out: run several rollout workers or pods against one vLLM server, or a server with tensor parallelism.

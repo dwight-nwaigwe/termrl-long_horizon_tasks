@@ -11,10 +11,30 @@ from typing import Any
 class Reply:
     text: str
     finish_reason: str | None
+    # Only filled when the LLM was created with logprobs=True and the server is vLLM:
+    token_ids: list[int] | None = None   # exact generated tokens
+    logprobs: list[float] | None = None  # log mu(token) under the rollout policy
 
 
 class ContextTooLong(Exception):
     """The conversation no longer fits the model's context window."""
+
+
+def parse_token_logprobs(choice: Any) -> tuple[list[int] | None, list[float] | None]:
+    """Read vLLM's per-token logprobs (requested with return_tokens_as_token_ids)."""
+    lp = getattr(choice, "logprobs", None)
+    content = getattr(lp, "content", None) if lp is not None else None
+    if not content:
+        return None, None
+    ids, lps = [], []
+    for item in content:
+        tok = item.token if hasattr(item, "token") else item["token"]
+        val = item.logprob if hasattr(item, "logprob") else item["logprob"]
+        if not isinstance(tok, str) or not tok.startswith("token_id:"):
+            return None, None  # server ignored return_tokens_as_token_ids
+        ids.append(int(tok.split(":", 1)[1]))
+        lps.append(float(val))
+    return ids, lps
 
 
 class LLM:
@@ -26,6 +46,7 @@ class LLM:
         extra_body: dict[str, Any] | None = None,
         max_tokens_field: str = "max_tokens",
         timeout: float = 600,
+        logprobs: bool = False,
     ):
         from openai import AsyncOpenAI
 
@@ -36,19 +57,24 @@ class LLM:
             max_retries=3,
         )
         self.model = model
-        self.extra_body = extra_body or None
+        self.extra_body = dict(extra_body or {})
         self.max_tokens_field = max_tokens_field
+        self.want_logprobs = logprobs
+        if logprobs:
+            self.extra_body["return_tokens_as_token_ids"] = True
 
     async def chat(self, messages: list[dict], temperature: float = 1.0, max_tokens: int = 2048) -> Reply:
         import openai
 
         kwargs: dict[str, Any] = {self.max_tokens_field: max_tokens}
+        if self.want_logprobs:
+            kwargs["logprobs"] = True
         try:
             r = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
-                extra_body=self.extra_body,
+                extra_body=self.extra_body or None,
                 **kwargs,
             )
         except openai.BadRequestError as e:
@@ -57,7 +83,8 @@ class LLM:
                 raise ContextTooLong(str(e)) from e
             raise
         choice = r.choices[0]
-        return Reply(text=choice.message.content or "", finish_reason=choice.finish_reason)
+        ids, lps = parse_token_logprobs(choice) if self.want_logprobs else (None, None)
+        return Reply(text=choice.message.content or "", finish_reason=choice.finish_reason, token_ids=ids, logprobs=lps)
 
 
 def make_llm(base_url: str, model: str, api_key_env: str | None = None, no_thinking: bool = False, **kw) -> LLM:

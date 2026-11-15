@@ -24,17 +24,27 @@ class VLLMServer:
         extra_args: list[str] | None = None,
         log_path: str | Path = "vllm.log",
         startup_timeout: float = 1800,
+        lora_path: str | Path | None = None,
+        max_lora_rank: int = 64,
+        plain_sampling: bool = False,
     ):
+        """lora_path: serve base model + this LoRA adapter; requests to `served_name` use the adapter.
+        plain_sampling: ignore the model's generation_config.json (top_p/top_k/repetition penalty), so
+        samples come from the plain softmax at the requested temperature, as RL needs."""
         self.model, self.port, self.served_name = model, port, served_name
         self.cmd = [
             "uvx", "--from", f"vllm=={version}", "vllm", "serve", model,
             "--port", str(port),
-            "--served-model-name", served_name,
+            "--served-model-name", "base" if lora_path else served_name,
             "--gpu-memory-utilization", str(gpu_memory_utilization),
             "--max-model-len", str(max_model_len),
             "--tensor-parallel-size", str(tensor_parallel_size),
-            *(extra_args or []),
         ]
+        if lora_path:
+            self.cmd += ["--enable-lora", "--max-lora-rank", str(max_lora_rank), "--lora-modules", f"{served_name}={lora_path}"]
+        if plain_sampling:
+            self.cmd += ["--generation-config", "vllm"]
+        self.cmd += list(extra_args or [])
         self.log_path = Path(log_path)
         self.startup_timeout = startup_timeout
         self.proc: subprocess.Popen | None = None
@@ -46,7 +56,7 @@ class VLLMServer:
     def _ready(self) -> bool:
         try:
             with urllib.request.urlopen(f"{self.base_url}/models", timeout=5) as r:
-                return self.served_name in json.loads(r.read())["data"][0]["id"]
+                return any(m["id"] == self.served_name for m in json.loads(r.read())["data"])
         except Exception:  # noqa: BLE001
             return False
 

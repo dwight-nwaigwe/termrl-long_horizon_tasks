@@ -1,0 +1,43 @@
+# DPPO run on a single GPU (the RL algorithm tmax uses).
+# Usage: uv run python -m termrl.iterate configs/dppo.yaml
+#
+# Each iteration attempts `tasks_per_iter` tasks `k` times each, then takes `updates`
+# optimizer steps. Only tasks with BOTH successes and failures give a learning signal,
+# so the policy should solve some but not all attempts. Warm-start first if it solves ~nothing.
+
+algorithm: dppo
+base_model: runs/models/warmstart/merged   # or Qwen/Qwen2.5-1.5B-Instruct
+run_dir: runs/dppo
+train_tasks: [tasks/generated]
+eval_tasks: [tasks/seed]
+iterations: 40
+seed: 0
+
+concurrency: 16          # parallel episodes; needs this many sandbox users
+k: 8                     # attempts per task (the "group" for advantages)
+temperature: 1.0         # keep 1.0: RL needs samples from the plain policy
+eval_k: 4
+eval_temperature: 0.6
+eval_every: 5            # evaluate on eval_tasks every N iterations (and once at the end)
+max_turns: 20
+max_tokens: 1024
+command_timeout: 60
+no_thinking: false
+
+vllm:
+  version: "0.19.1"
+  port: 8000
+  gpu_memory_utilization: 0.85
+  max_model_len: 16384
+  tensor_parallel_size: 1
+  extra_args: ["--enforce-eager"]   # faster startup; vLLM restarts every iteration
+
+dppo:
+  tasks_per_iter: 32     # tasks per iteration (x k episodes)
+  divergence: tv         # tv (Binary-TV) or kl (Binary-KL)
+  delta: null            # trust-region threshold; null = paper default (0.15 tv, 0.05 kl)
+  lr: 1.0e-5             # paper's LoRA setting; try 2e-5 if learning is too slow
+  updates: 4             # optimizer steps per batch of rollouts
+  lora_r: 32
+  lora_alpha: 64
+  max_length: 8192

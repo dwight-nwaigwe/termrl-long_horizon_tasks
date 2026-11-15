@@ -97,7 +97,10 @@ async def run_episode(
             kind, payload = parse_action(reply.text)
             if reply.finish_reason == "length" and kind != "submit":
                 kind, payload = "error", "Your reply was cut off. Keep replies short: brief reasoning, then one command."
-            turn_meta.append({"kind": kind, "format_error": kind == "error"})
+            meta = {"kind": kind, "format_error": kind == "error"}
+            if getattr(reply, "token_ids", None) is not None:  # for DPPO: exact tokens + rollout logprobs
+                meta["token_ids"], meta["logprobs"] = reply.token_ids, reply.logprobs
+            turn_meta.append(meta)
             if kind == "submit":
                 finish = "submitted"
                 break
