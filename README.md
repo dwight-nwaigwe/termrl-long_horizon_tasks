@@ -204,8 +204,3 @@ Run the tests with `uv run pytest -q tests`. They need root and the sandbox user
 * **vLLM won't start**: read `runs/.../vllm.log` or the tmux window. CUDA errors usually mean the pod's driver is too old for that vLLM version. Pick a pod with a newer CUDA version (RunPod lets you filter by it) or set `VLLM_VERSION` / `vllm.version` to an older release.
 * **Out of memory while training**: lower `sft.max_length` or `lora_r`, or use a smaller model. Make sure vLLM was stopped.
 * **Qwen3-style models**: set `no_thinking: true` (or pass `--no-thinking`) unless you want `<think>` reasoning, which needs a larger `max_tokens` and `max_model_len`.
-
-## Next steps beyond this repo
-
-* Keep vLLM running and push adapter updates to it (vLLM can load LoRA adapters at runtime) instead of restarting it every DPPO iteration.
-* Scale out: run several rollout workers or pods against one vLLM server, or a server with tensor parallelism.
